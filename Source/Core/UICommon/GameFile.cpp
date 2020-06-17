@@ -5,6 +5,7 @@
 #include "UICommon/GameFile.h"
 
 #include <wx/image.h>
+#include <wx/image.h>
 
 #include <algorithm>
 #include <cinttypes>

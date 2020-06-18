@@ -830,4 +830,3 @@ WXDLLIMPEXP_CORE bool wxYieldIfNeeded();
 
 #endif
     // _WX_UTILSH__
-

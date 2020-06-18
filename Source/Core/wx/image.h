@@ -665,4 +665,3 @@ extern WXDLLIMPEXP_DATA_CORE(wxImage)    wxNullImage;
 
 #endif
   // _WX_IMAGE_H_
-

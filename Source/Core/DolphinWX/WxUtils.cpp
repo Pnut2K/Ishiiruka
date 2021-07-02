@@ -13,13 +13,11 @@
 #include <wx/combobox.h>
 #include <wx/display.h>
 #include <wx/gdicmn.h>
-#include <wx/image.h>
 #include <wx/msgdlg.h>
 #include <wx/sizer.h>
 #include <wx/spinctrl.h>
 #include <wx/toolbar.h>
 #include <wx/toplevel.h>
-#include <wx/utils.h>
 
 #include "Common/CommonPaths.h"
 #include "Common/FileUtil.h"
@@ -131,13 +129,13 @@ void SetWindowSizeAndFitToScreen(wxTopLevelWindow* tlw, wxPoint pos, wxSize size
   if (wxDisplay::GetCount() > 1)
     screen_geometry = GetVirtualScreenGeometry();
   else
-    screen_geometry = wxDisplay(0).GetClientArea();
+    screen_geometry = wxDisplay().GetClientArea();
 
   // Initialize the default size if it is wxDefaultSize or otherwise negative.
   default_size.DecTo(screen_geometry.GetSize());
   default_size.IncTo(tlw->GetMinSize());
   if (!default_size.IsFullySpecified())
-    default_size.SetDefaults(wxDisplay(0).GetClientArea().GetSize() / 2);
+    default_size.SetDefaults(wxDisplay().GetClientArea().GetSize() / 2);
 
   // If the position we're given doesn't make sense then go with the current position.
   // (Assuming the window was created with wxDefaultPosition then this should be reasonable)

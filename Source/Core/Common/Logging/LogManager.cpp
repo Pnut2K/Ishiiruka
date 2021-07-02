@@ -2,11 +2,13 @@
 // Licensed under GPLv2+
 // Refer to the license.txt file included.
 
+#include <algorithm>
 #include <cstdarg>
 #include <cstring>
 #include <mutex>
 #include <ostream>
 #include <string>
+#include <locale>
 
 #include "Common/CommonPaths.h"
 #include "Common/Config/Config.h"
@@ -72,7 +74,7 @@ static size_t DeterminePathCutOffPoint()
 #endif
   std::string path = __FILE__;
   std::transform(path.begin(), path.end(), path.begin(),
-    [](char c) { return std::tolower(c); });
+          [](char c) { return std::tolower(c, std::locale::classic()); });
   size_t pos = path.find(pattern);
 #ifdef _WIN32
   if (pos == std::string::npos)

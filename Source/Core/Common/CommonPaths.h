@@ -24,7 +24,7 @@
 #define DOLPHIN_DATA_DIR "/sdcard/ishiiruka"
 #else
 #define USERDATA_DIR "user"
-#define DOLPHIN_DATA_DIR "ishiiruka"
+#define DOLPHIN_DATA_DIR "FasterPPlus"
 #endif
 
 // Dirs in both User and Sys

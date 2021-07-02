@@ -3,13 +3,12 @@
 // Refer to the license.txt file included.
 
 #include <algorithm>
-#include <fstream>
 #include <libusb.h>
 #include <mutex>
+#include <chrono>
 
 #include "Common/Event.h"
 #include "Common/Flag.h"
-#include "Common/FileUtil.h"
 #include "Common/Logging/Log.h"
 #include "Common/Thread.h"
 #include "Core/ConfigManager.h"
@@ -53,6 +52,7 @@ namespace GCAdapter
   static std::mutex s_init_mutex;
   static std::thread s_adapter_detect_thread;
   static Common::Flag s_adapter_detect_thread_running;
+  static Common::Event s_hotplug_event;
 
   static std::function<void(void)> s_detect_callback;
 
@@ -72,7 +72,8 @@ namespace GCAdapter
 
   static u64 s_last_init = 0;
 
-  static auto lastPollTime = std::chrono::steady_clock::now();
+  static u64 s_consecutive_slow_transfers = 0;
+  static double s_read_rate = 0.0;
 
   bool adapter_error = false;
 
@@ -81,21 +82,58 @@ namespace GCAdapter
     return adapter_error && s_adapter_thread_running.IsSet();
   }
 
+  bool IsReadingAtReducedRate()
+  {
+    return s_consecutive_slow_transfers > 80;
+  }
+
+  double ReadRate()
+  {
+    return s_read_rate;
+  }
+
   static void Read()
   {
+    s_consecutive_slow_transfers = 0;
     adapter_error = false;
+
+    u8 bkp_payload_swap[37];
+    int bkp_payload_size = 0;
+    bool has_prev_input = false;
+    s_read_rate = 0.0;
 
     int payload_size = 0;
     while (s_adapter_thread_running.IsSet())
     {
+      bool reuseOldInputsEnabled = SConfig::GetInstance().bAdapterWarning;
+      std::chrono::time_point<std::chrono::high_resolution_clock> start = std::chrono::high_resolution_clock::now();
       adapter_error = libusb_interrupt_transfer(s_handle, s_endpoint_in, s_controller_payload_swap,
-        sizeof(s_controller_payload_swap), &payload_size, TIMEOUT) != LIBUSB_SUCCESS && SConfig::GetInstance().bAdapterWarning;
+        sizeof(s_controller_payload_swap), &payload_size, TIMEOUT) != LIBUSB_SUCCESS && reuseOldInputsEnabled;
 
-      int err = libusb_interrupt_transfer(s_handle, s_endpoint_in, s_controller_payload_swap,
-        sizeof(s_controller_payload_swap), &payload_size, TIMEOUT);
+      double elapsed = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now() - start).count() / 1000000.0;
 
-      if (err)
-        ERROR_LOG(SERIALINTERFACE, "adapter libusb read failed: err=%s", libusb_error_name(err));
+      // Store previous input and restore in the case of an adapter error
+      if (reuseOldInputsEnabled)
+      {
+        if (!adapter_error)
+        {
+          memcpy(bkp_payload_swap, s_controller_payload_swap, 37);
+          bkp_payload_size = payload_size;
+          has_prev_input = true;
+        }
+        else if (has_prev_input)
+        {
+          memcpy(s_controller_payload_swap, bkp_payload_swap, 37);
+          payload_size = bkp_payload_size;
+        }
+      }
+
+      if (elapsed > 15.0)
+        s_consecutive_slow_transfers++;
+      else
+        s_consecutive_slow_transfers = 0;
+
+      s_read_rate = elapsed;
 
       {
         std::lock_guard<std::mutex> lk(s_mutex);
@@ -120,9 +158,7 @@ namespace GCAdapter
 
       u8 payload[5] = { 0x11, s_controller_rumble[0], s_controller_rumble[1], s_controller_rumble[2],
                        s_controller_rumble[3] };
-      int err = libusb_interrupt_transfer(s_handle, s_endpoint_out, payload, sizeof(payload), &size, TIMEOUT);
-      if (err)
-        ERROR_LOG(SERIALINTERFACE, "adapter libusb write failed: err=%s", libusb_error_name(err));
+      libusb_interrupt_transfer(s_handle, s_endpoint_out, payload, sizeof(payload), &size, TIMEOUT);
     }
   }
 
@@ -132,11 +168,8 @@ namespace GCAdapter
   {
     if (event == LIBUSB_HOTPLUG_EVENT_DEVICE_ARRIVED)
     {
-      if (s_handle == nullptr && CheckDeviceAccess(dev))
-      {
-        std::lock_guard<std::mutex> lk(s_init_mutex);
-        AddGCAdapter(dev);
-      }
+      if (s_handle == nullptr)
+        s_hotplug_event.Set();
     }
     else if (event == LIBUSB_HOTPLUG_EVENT_DEVICE_LEFT)
     {
@@ -171,22 +204,16 @@ namespace GCAdapter
 
     while (s_adapter_detect_thread_running.IsSet())
     {
+      if (s_handle == nullptr)
+      {
+        std::lock_guard<std::mutex> lk(s_init_mutex);
+        Setup();
+      }
+
       if (s_libusb_hotplug_enabled)
-      {
-        static timeval tv = { 0, 500000 };
-        libusb_handle_events_timeout(s_libusb_context, &tv);
-      }
+        s_hotplug_event.Wait();
       else
-      {
-        if (s_handle == nullptr)
-        {
-          std::lock_guard<std::mutex> lk(s_init_mutex);
-          Setup();
-          if (s_detected && s_detect_callback != nullptr)
-            s_detect_callback();
-        }
         Common::SleepCurrentThread(500);
-      }
     }
     NOTICE_LOG(SERIALINTERFACE, "GC Adapter scanning thread stopped");
   }
@@ -234,6 +261,7 @@ namespace GCAdapter
   {
     if (s_adapter_detect_thread_running.TestAndClear())
     {
+      s_hotplug_event.Set();
       s_adapter_detect_thread.join();
     }
   }
@@ -319,6 +347,12 @@ namespace GCAdapter
             ERROR_LOG(SERIALINTERFACE, "libusb_detach_kernel_driver failed with error: %d", ret);
         }
       }
+      // This call makes Nyko-brand (and perhaps other) adapters work.
+      // However it returns LIBUSB_ERROR_PIPE with Mayflash adapters.
+      const int transfer = libusb_control_transfer(s_handle, 0x21, 11, 0x0001, 0, nullptr, 0, 1000);
+      if (transfer < 0)
+        WARN_LOG(SERIALINTERFACE, "libusb_control_transfer failed with error: %d", transfer);
+
       // this split is needed so that we don't avoid claiming the interface when
       // detaching the kernel driver is successful
       if (ret != 0 && ret != LIBUSB_ERROR_NOT_SUPPORTED)
@@ -416,12 +450,6 @@ namespace GCAdapter
     NOTICE_LOG(SERIALINTERFACE, "GC Adapter detached");
   }
 
-  void writeInputsToFile(char* payload) {
-    std::ofstream myfile;
-    myfile.open("./GCCinputs.bin", std::ios::binary);
-    myfile.write(payload, 37);
-  }
-
   GCPadStatus Input(int chan)
   {
     if (!UseAdapter())
@@ -429,16 +457,6 @@ namespace GCAdapter
 
     if (s_handle == nullptr || !s_detected)
       return {};
-
-    if (AdapterError())
-    {
-      GCPadStatus centered_status = { 0 };
-      centered_status.stickX = centered_status.stickY =
-        centered_status.substickX = centered_status.substickY =
-        /* these are all the same */ GCPadStatus::MAIN_STICK_CENTER_X;
-
-      return centered_status;
-    }
 
     int payload_size = 0;
     u8 controller_payload_copy[37];
@@ -454,9 +472,9 @@ namespace GCAdapter
     if (payload_size != sizeof(controller_payload_copy) ||
       controller_payload_copy[0] != LIBUSB_DT_HID)
     {
+      // This can occur for a few frames on initialization.
       ERROR_LOG(SERIALINTERFACE, "error reading payload (size: %d, type: %02x)", payload_size,
         controller_payload_copy[0]);
-      Reset();
     }
     else
     {
@@ -476,16 +494,6 @@ namespace GCAdapter
       {
         u8 b1 = controller_payload_copy[1 + (9 * chan) + 1];
         u8 b2 = controller_payload_copy[1 + (9 * chan) + 2];
-
-        if (SConfig::GetInstance().m_WriteInputsToFile == true)
-        {
-          auto now = std::chrono::steady_clock::now();
-          if (std::chrono::duration_cast<std::chrono::microseconds>(now - lastPollTime).count() >= 16667)
-          {
-            writeInputsToFile((char*) controller_payload_copy);
-            lastPollTime = std::chrono::steady_clock::now();
-          }
-        }
 
         if (b1 & (1 << 0))
           pad.button |= PAD_BUTTON_A;

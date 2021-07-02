@@ -21,20 +21,20 @@ const ConfigInfo<int> GFX_ADAPTER{{System::GFX, "Hardware", "Adapter"}, 0};
 
 const ConfigInfo<bool> GFX_WIDESCREEN_HACK{{System::GFX, "Settings", "wideScreenHack"}, false};
 const ConfigInfo<int> GFX_ASPECT_RATIO{{System::GFX, "Settings", "AspectRatio"},
-                                       static_cast<int>(ASPECT_AUTO)};
+                                       static_cast<int>(ASPECT_69_40)};
 const ConfigInfo<int> GFX_SUGGESTED_ASPECT_RATIO{ { System::GFX, "Settings", "SuggestedAspectRatio" },
-static_cast<int>(ASPECT_AUTO) };
+static_cast<int>(ASPECT_69_40) };
 const ConfigInfo<bool> GFX_CROP{{System::GFX, "Settings", "Crop"}, false};
 const ConfigInfo<bool> GFX_USE_XFB{{System::GFX, "Settings", "UseXFB"}, false};
 const ConfigInfo<bool> GFX_USE_REAL_XFB{{System::GFX, "Settings", "UseRealXFB"}, false};
 const ConfigInfo<int> GFX_SAFE_TEXTURE_CACHE_COLOR_SAMPLES{
     {System::GFX, "Settings", "SafeTextureCacheColorSamples"}, 128};
-const ConfigInfo<bool> GFX_SHOW_FPS{{System::GFX, "Settings", "ShowFPS"}, false};
-const ConfigInfo<bool> GFX_SHOW_NETPLAY_PING{{System::GFX, "Settings", "ShowNetPlayPing"}, false};
+const ConfigInfo<bool> GFX_SHOW_FPS{{System::GFX, "Settings", "ShowFPS"}, true};
+const ConfigInfo<bool> GFX_SHOW_NETPLAY_PING{{System::GFX, "Settings", "ShowNetPlayPing"}, true};
 const ConfigInfo<bool> GFX_SHOW_NETPLAY_MESSAGES{{System::GFX, "Settings", "ShowNetPlayMessages"},
-                                                 false};
-const ConfigInfo<bool> GFX_SHOW_OSD_CLOCK{ {System::GFX, "Settings", "ShowOSDClock"}, false };
-const ConfigInfo<bool> GFX_SHOW_FRAME_TIMES{ {System::GFX, "Settings", "ShowFrameTimes"}, false };
+                                                 true};
+const ConfigInfo<bool> GFX_SHOW_OSD_CLOCK{ {System::GFX, "Settings", "ShowOSDClock"}, true };
+const ConfigInfo<bool> GFX_SHOW_FRAME_TIMES{ {System::GFX, "Settings", "ShowFrameTimes"}, true };
 const ConfigInfo<bool> GFX_LOG_RENDER_TIME_TO_FILE{{System::GFX, "Settings", "LogRenderTimeToFile"},
                                                    false};
 const ConfigInfo<bool> GFX_OVERLAY_STATS{{System::GFX, "Settings", "OverlayStats"}, false};
@@ -170,13 +170,13 @@ const ConfigInfo<std::string> GFX_STEREO_SHADER{
 
 // Graphics.Hacks
 
-const ConfigInfo<bool> GFX_HACK_EFB_ACCESS_ENABLE{{System::GFX, "Hacks", "EFBAccessEnable"}, true};
+const ConfigInfo<bool> GFX_HACK_EFB_ACCESS_ENABLE{{System::GFX, "Hacks", "EFBAccessEnable"}, false};
 const ConfigInfo<bool> GFX_HACK_EFB_FAST_ACCESS_ENABLE{ { System::GFX, "Hacks", "EFBFastAccess" }, false };
 const ConfigInfo<int> GFX_HACK_BBOX_MODE{{System::GFX, "Hacks", "BoundingBoxMode"}, 0};
 const ConfigInfo<bool> GFX_HACK_FORCE_PROGRESSIVE{{System::GFX, "Hacks", "ForceProgressive"}, true};
 const ConfigInfo<bool> GFX_HACK_SKIP_EFB_COPY_TO_RAM{{System::GFX, "Hacks", "EFBToTextureEnable"},
                                                      true};
-const ConfigInfo<bool> GFX_HACK_COPY_EFB_SCALED{{System::GFX, "Hacks", "EFBScaledCopy"}, true};
+const ConfigInfo<bool> GFX_HACK_COPY_EFB_SCALED{{System::GFX, "Hacks", "EFBScaledCopy"}, false};
 const ConfigInfo<bool> GFX_HACK_EFB_EMULATE_FORMAT_CHANGES{
     {System::GFX, "Hacks", "EFBEmulateFormatChanges"}, false};
 const ConfigInfo<bool> GFX_HACK_VERTEX_ROUDING{{System::GFX, "Hacks", "VertexRounding"}, false};
